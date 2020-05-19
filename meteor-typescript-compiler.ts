@@ -31,9 +31,11 @@ export class MeteorTypescriptCompilerImpl {
       throw new Error("Could not find a valid 'tsconfig.json'.");
     }
 
-    console.log(`configPath: ${configPath}`);
+    //    console.log(`configPath: ${configPath}`);
 
-    const buildInfoFile = ts.sys.resolvePath("./buildfile.tsbuildinfo");
+    const buildInfoFile = ts.sys.resolvePath(
+      ".meteor/local/buildfile.tsbuildinfo"
+    );
     const config = ts.getParsedCommandLineOfConfigFile(
       configPath,
       /*optionsToExtend*/ {
@@ -134,6 +136,10 @@ export class MeteorTypescriptCompilerImpl {
   }
 
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
+    if (inputFiles.length > 0) {
+      console.info(`Typescript compilation for ${inputFiles[0].getArch()}`);
+    }
+
     this.startIncrementalCompilation();
 
     const isCompilableFile = (f: MeteorCompiler.InputFile) => {
