@@ -87,6 +87,8 @@ declare namespace MeteorCompiler {
      * @memberof InputFile
      */
     public error(options: ErrorOptions): void;
+
+    public addJavaScript(options: { data: string; path: string }): void;
   }
 
   export class Compiler {

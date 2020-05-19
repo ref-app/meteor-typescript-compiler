@@ -1,12 +1,24 @@
 import * as ts from "typescript";
 
+export const syncAwaitPromise = <T>(p: Promise<T>): T => {
+  const untypedPromise: any = p;
+  if (!untypedPromise.await) {
+    throw new Error("no-await");
+  }
+  const result: T = untypedPromise.await();
+  return result;
+};
+
+interface EmitResult {
+  fileName: string;
+  data: string;
+  writeByteOrderMark: boolean;
+  sourceFiles: readonly ts.SourceFile[];
+}
+
 export class MeteorTypescriptCompilerImpl {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram;
   private diagnostics: ts.Diagnostic[];
-
-  constructor() {
-    console.log("MeteorTypescriptCompiler constructor called");
-  }
 
   startIncrementalCompilation() {
     const configPath = ts.findConfigFile(
@@ -18,12 +30,17 @@ export class MeteorTypescriptCompilerImpl {
       throw new Error("Could not find a valid 'tsconfig.json'.");
     }
 
+    console.log(`configPath: ${configPath}`);
+
     const buildInfoFile = ts.sys.resolvePath("./buildfile.tsbuildinfo");
     const config = ts.getParsedCommandLineOfConfigFile(
       configPath,
       /*optionsToExtend*/ {
         incremental: true,
         tsBuildInfoFile: buildInfoFile,
+        noEmit: false,
+        importHelpers: true,
+        sourceMap: true,
       },
       /*host*/ {
         ...ts.sys,
@@ -50,22 +67,62 @@ export class MeteorTypescriptCompilerImpl {
       ...this.program.getGlobalDiagnostics(),
       ...this.program.getSemanticDiagnostics(), // Get the diagnostics before emit to cache them in the buildInfo file.
     ];
-  }
 
-  emitResultFor(inputFile: MeteorCompiler.InputFile) {
-    const sourceFile = this.program.getSourceFile(inputFile.getPathInPackage());
+    /** Save out buildinfo */
     this.program.emit(
-      sourceFile,
+      undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        console.log("Got emitted data");
+        if (fileName.includes("buildinfo")) {
+          console.log(fileName);
+        }
+        if (fileName === buildInfoFile) {
+          console.log(`Writing ${buildInfoFile}`);
+          ts.sys.writeFile(fileName, data, writeByteOrderMark);
+        }
       }
     );
   }
 
+  emitAsync(sourceFile: ts.SourceFile): Promise<EmitResult> {
+    return new Promise((resolve, reject) => {
+      const result = this.program.emit(
+        sourceFile,
+        (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
+          resolve({ fileName, data, writeByteOrderMark, sourceFiles });
+        }
+      );
+      if (result.emitSkipped || !result.emittedFiles) {
+        reject(new Error(`nothing emitted for ${sourceFile.fileName}`));
+      }
+    });
+  }
+
+  emitResultFor(inputFile: MeteorCompiler.InputFile) {
+    const inputFilePath = inputFile.getPathInPackage();
+    const sourceFile =
+      this.program.getSourceFile(inputFilePath) ||
+      this.program.getSourceFile(ts.sys.resolvePath(inputFilePath));
+
+    if (!sourceFile) {
+      console.log(`${inputFilePath} - no source file found`);
+      return;
+    }
+    try {
+      const { data, fileName } = syncAwaitPromise(this.emitAsync(sourceFile));
+      console.log(`emitting for ${inputFilePath}`);
+      inputFile.addJavaScript({ data, path: fileName });
+    } catch (e) {
+      console.error(e.message);
+    }
+  }
+
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
-    console.log("processFilesForTarget called");
     this.startIncrementalCompilation();
-    for (const inputFile of inputFiles) {
+
+    const noDefinitionFiles = (f: MeteorCompiler.InputFile) =>
+      !f.getBasename().match(/.d.ts$/);
+
+    for (const inputFile of inputFiles.filter(noDefinitionFiles)) {
       this.emitResultFor(inputFile);
     }
   }
