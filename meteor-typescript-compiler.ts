@@ -1,14 +1,5 @@
 import * as ts from "typescript";
 
-export const syncAwaitPromise = <T>(p: Promise<T>): T => {
-  const untypedPromise: any = p;
-  if (!untypedPromise.await) {
-    throw new Error("no-await");
-  }
-  const result: T = untypedPromise.await();
-  return result;
-};
-
 interface EmitResult {
   fileName: string;
   data: string;
