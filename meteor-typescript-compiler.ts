@@ -53,14 +53,20 @@ export class MeteorTypescriptCompilerImpl {
   }
 
   emitResultFor(inputFile: MeteorCompiler.InputFile) {
-    this.program.emit();
+    const sourceFile = this.program.getSourceFile(inputFile.getPathInPackage());
+    this.program.emit(
+      sourceFile,
+      (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
+        console.log("Got emitted data");
+      }
+    );
   }
 
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
     console.log("processFilesForTarget called");
     this.startIncrementalCompilation();
     for (const inputFile of inputFiles) {
-      console.log(inputFile.getPathInPackage());
+      this.emitResultFor(inputFile);
     }
   }
 }
