@@ -120,7 +120,7 @@ declare namespace MeteorCompiler {
      */
     public addJavaScript(
       options: AddJavaScriptOptions,
-      lazyFinalizer: () => Partial<AddJavaScriptOptions>
+      lazyFinalizer?: () => Partial<AddJavaScriptOptions>
     ): void;
   }
 
