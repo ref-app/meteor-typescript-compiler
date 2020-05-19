@@ -16,3 +16,10 @@ Package.onUse(function (api) {
   api.addFiles(["meteor-typescript-compiler.ts"], "server");
   api.export(["MeteorTypescriptCompiler"], "server");
 });
+
+Package.onTest(function (api) {
+  api.use("tinytest");
+  api.use("typescript");
+  api.use("refapp:meteor-typescript-compiler");
+  api.mainModule("tests.ts");
+});
