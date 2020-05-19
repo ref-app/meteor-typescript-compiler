@@ -12,8 +12,7 @@ Npm.depends({
 
 Package.onUse(function (api) {
   api.versionsFrom("1.10");
-  api.use("ecmascript", "server");
-  api.use("typescript", "server");
+  api.use(["typescript"], "server");
   api.addFiles(["meteor-typescript-compiler.ts"], "server");
   api.export(["MeteorTypescriptCompiler"], "server");
 });

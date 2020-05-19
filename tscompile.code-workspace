@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../meteor-typescript"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"debug.node.autoAttach": "on"
+	}
+}
