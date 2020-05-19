@@ -6,6 +6,15 @@ declare namespace MeteorCompiler {
     func: string;
   }
 
+  interface AddJavaScriptOptions {
+    sourcePath: string;
+    path: string;
+    data: string;
+    hash?: string;
+    sourceMap: string | undefined;
+    bare?: boolean;
+  }
+
   export class InputFile {
     /**
      * @summary Returns the full contents of the file as a buffer.
@@ -88,14 +97,31 @@ declare namespace MeteorCompiler {
      */
     public error(options: ErrorOptions): void;
 
-    public addJavaScript(options: {
-      sourcePath: string;
-      path: string;
-      data: string;
-      hash?: string;
-      sourceMap: string | undefined;
-      bare?: boolean;
-    }): void;
+    /**
+     * @summary Add JavaScript code. The code added will only see the
+     * namespaces imported by this package as runtime dependencies using
+     * ['api.use'](#PackageAPI-use). If the file being compiled was added
+     * with the bare flag, the resulting JavaScript won't be wrapped in a
+     * closure.
+     * @param {Object} options
+     * @param {String} options.path The path at which the JavaScript file
+     * should be inserted, may not be honored in case of path conflicts.
+     * @param {String} options.data The code to be added.
+     * @param {String|Object} options.sourceMap A stringified JSON
+     * sourcemap, in case the JavaScript file was generated from a
+     * different file.
+     * @param {Function} lazyFinalizer Optional function that can be called
+     *                   to obtain any remaining options that may be
+     *                   expensive to compute, and thus should only be
+     *                   computed if/when we are sure this JavaScript will
+     *                   be used by the application.
+     * @memberOf InputFile
+     * @instance
+     */
+    public addJavaScript(
+      options: AddJavaScriptOptions,
+      lazyFinalizer: () => Partial<AddJavaScriptOptions>
+    ): void;
   }
 
   export class Compiler {
