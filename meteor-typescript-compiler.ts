@@ -70,9 +70,6 @@ export class MeteorTypescriptCompilerImpl {
     ];
 
     /** Save out buildinfo */
-    this.program
-      .getSourceFiles()
-      .forEach((f) => console.log(`source: ${f.fileName}`));
     this.program.emit(
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
