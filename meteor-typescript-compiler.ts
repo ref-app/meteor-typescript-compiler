@@ -1,4 +1,4 @@
-var MeteorTypescriptCompiler = class MeteorTypescriptCompiler {
+export class MeteorTypescriptCompiler {
   constructor() {
     console.log("MeteorTypescriptCompiler constructor called");
   }
@@ -8,4 +8,4 @@ var MeteorTypescriptCompiler = class MeteorTypescriptCompiler {
       console.log(inputFile.getPathInPackage());
     }
   }
-};
+}
