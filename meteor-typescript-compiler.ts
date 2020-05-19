@@ -13,6 +13,7 @@ interface EmitResult {
   fileName: string;
   data: string;
   writeByteOrderMark: boolean;
+  sourceMap?: string;
   sourceFiles: readonly ts.SourceFile[];
 }
 
@@ -69,12 +70,12 @@ export class MeteorTypescriptCompilerImpl {
     ];
 
     /** Save out buildinfo */
+    this.program
+      .getSourceFiles()
+      .forEach((f) => console.log(`source: ${f.fileName}`));
     this.program.emit(
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        if (fileName.includes("buildinfo")) {
-          console.log(fileName);
-        }
         if (fileName === buildInfoFile) {
           console.log(`Writing ${buildInfoFile}`);
           ts.sys.writeFile(fileName, data, writeByteOrderMark);
@@ -83,18 +84,24 @@ export class MeteorTypescriptCompilerImpl {
     );
   }
 
-  emitAsync(sourceFile: ts.SourceFile): Promise<EmitResult> {
-    return new Promise((resolve, reject) => {
-      const result = this.program.emit(
-        sourceFile,
-        (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-          resolve({ fileName, data, writeByteOrderMark, sourceFiles });
+  emitForSource(sourceFile: ts.SourceFile): EmitResult | undefined {
+    let result: EmitResult | undefined = undefined;
+    let sourceMap: string | undefined = undefined;
+
+    const localResult = this.program.emit(
+      sourceFile,
+      (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
+        if (fileName.match(/\.map$/)) {
+          sourceMap = data;
+        } else {
+          result = { data, fileName, writeByteOrderMark, sourceFiles };
         }
-      );
-      if (result.emitSkipped || !result.emittedFiles) {
-        reject(new Error(`nothing emitted for ${sourceFile.fileName}`));
       }
-    });
+    );
+    if (!result) {
+      return result;
+    }
+    return { ...result, sourceMap };
   }
 
   emitResultFor(inputFile: MeteorCompiler.InputFile) {
@@ -104,13 +111,26 @@ export class MeteorTypescriptCompilerImpl {
       this.program.getSourceFile(ts.sys.resolvePath(inputFilePath));
 
     if (!sourceFile) {
-      console.log(`${inputFilePath} - no source file found`);
       return;
     }
     try {
-      const { data, fileName } = syncAwaitPromise(this.emitAsync(sourceFile));
-      console.log(`emitting for ${inputFilePath}`);
-      inputFile.addJavaScript({ data, path: fileName });
+      const emitResult = this.emitForSource(sourceFile);
+      if (!emitResult) {
+        console.error(`Nothing emitted for ${inputFilePath}`);
+        return;
+      }
+      const { data, fileName, sourceMap } = emitResult;
+      // console.log(
+      //   `emitting ${fileName} ${
+      //     sourceMap ? "with source map" : ""
+      //   } for ${inputFilePath}`
+      // );
+      inputFile.addJavaScript({
+        data,
+        sourcePath: inputFilePath,
+        path: fileName,
+        sourceMap,
+      });
     } catch (e) {
       console.error(e.message);
     }
@@ -119,10 +139,12 @@ export class MeteorTypescriptCompilerImpl {
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
     this.startIncrementalCompilation();
 
-    const noDefinitionFiles = (f: MeteorCompiler.InputFile) =>
-      !f.getBasename().match(/.d.ts$/);
+    const isCompilableFile = (f: MeteorCompiler.InputFile) => {
+      const fileName = f.getBasename();
+      return !fileName.match(/.d.ts$/) && !fileName.match(/^tsconfig.json$/i);
+    };
 
-    for (const inputFile of inputFiles.filter(noDefinitionFiles)) {
+    for (const inputFile of inputFiles.filter(isCompilableFile)) {
       this.emitResultFor(inputFile);
     }
   }

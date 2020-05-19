@@ -88,7 +88,14 @@ declare namespace MeteorCompiler {
      */
     public error(options: ErrorOptions): void;
 
-    public addJavaScript(options: { data: string; path: string }): void;
+    public addJavaScript(options: {
+      sourcePath: string;
+      path: string;
+      data: string;
+      hash?: string;
+      sourceMap: string | undefined;
+      bare?: boolean;
+    }): void;
   }
 
   export class Compiler {
