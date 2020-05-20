@@ -20,6 +20,13 @@ declare namespace MeteorCompiler {
     bare?: boolean;
   }
 
+  export interface FileOptions {
+    bare?: boolean;
+    mainModule?: boolean;
+    lazy?: boolean;
+    isAsset?: boolean;
+  }
+
   export class InputFile {
     /**
      * @summary Returns the full contents of the file as a buffer.
@@ -88,7 +95,7 @@ declare namespace MeteorCompiler {
      * @memberof InputFile
      * @returns {Object}
      */
-    getFileOptions(): Object;
+    getFileOptions(): FileOptions;
 
     /**
      * @summary Call this method to raise a compilation or linting error for the
