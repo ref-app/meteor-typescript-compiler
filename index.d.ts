@@ -6,12 +6,17 @@ declare namespace MeteorCompiler {
     func: string;
   }
 
-  interface AddJavaScriptOptions {
+  /**
+   * JSON or deserialized json sourcemap
+   */
+  export type SourceMap = string | Object;
+
+  export interface AddJavaScriptOptions {
     sourcePath: string;
     path: string;
     data: string;
     hash?: string;
-    sourceMap: string | undefined;
+    sourceMap: SourceMap | undefined;
     bare?: boolean;
   }
 

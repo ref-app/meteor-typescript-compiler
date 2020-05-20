@@ -1,16 +1,48 @@
 import * as ts from "typescript";
+import { green, bold, red, reset, dim } from "chalk";
 
 interface EmitResult {
   fileName: string;
   data: string;
   writeByteOrderMark: boolean;
-  sourceMap?: string;
+  sourceMap?: MeteorCompiler.SourceMap;
   sourceFiles: readonly ts.SourceFile[];
 }
 
 export class MeteorTypescriptCompilerImpl {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram;
   private diagnostics: ts.Diagnostic[];
+
+  error(msg: string, ...other: string[]) {
+    process.stdout.write(bold.red(msg) + reset(other.join(" ")) + "\n");
+  }
+
+  info(msg: string) {
+    process.stdout.write(bold.green(msg) + dim(" ") + "\n");
+  }
+
+  writeDiagnostics(diagnostics: ts.Diagnostic[]) {
+    diagnostics.forEach((diagnostic) => {
+      if (diagnostic.file) {
+        let { line, character } = diagnostic.file.getLineAndCharacterOfPosition(
+          diagnostic.start!
+        );
+        let message = ts.flattenDiagnosticMessageText(
+          diagnostic.messageText,
+          "\n"
+        );
+        console.log(
+          `${diagnostic.file.fileName} (${line + 1},${
+            character + 1
+          }): ${message}`
+        );
+      } else {
+        console.log(
+          `${ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`
+        );
+      }
+    });
+  }
 
   startIncrementalCompilation() {
     const configPath = ts.findConfigFile(
@@ -21,8 +53,6 @@ export class MeteorTypescriptCompilerImpl {
     if (!configPath) {
       throw new Error("Could not find a valid 'tsconfig.json'.");
     }
-
-    //    console.log(`configPath: ${configPath}`);
 
     const buildInfoFile = ts.sys.resolvePath(
       ".meteor/local/buildfile.tsbuildinfo"
@@ -72,17 +102,32 @@ export class MeteorTypescriptCompilerImpl {
         }
       }
     );
+    this.writeDiagnostics(this.diagnostics);
   }
 
-  emitForSource(sourceFile: ts.SourceFile): EmitResult | undefined {
-    let result: EmitResult | undefined = undefined;
-    let sourceMap: string | undefined = undefined;
+  prepareSourceMap(
+    sourceMapJson: string,
+    inputFile: MeteorCompiler.InputFile,
+    sourceFile: ts.SourceFile
+  ): Object {
+    const sourceMap: any = JSON.parse(sourceMapJson);
+    sourceMap.sourcesContent = [sourceFile.text];
+    sourceMap.sources = [inputFile.getPathInPackage()];
+    return sourceMap;
+  }
 
-    const localResult = this.program.emit(
+  emitForSource(
+    inputFile: MeteorCompiler.InputFile,
+    sourceFile: ts.SourceFile
+  ): EmitResult | undefined {
+    let result: EmitResult | undefined = undefined;
+    let sourceMap: Object | string | undefined = undefined;
+
+    this.program.emit(
       sourceFile,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
         if (fileName.match(/\.map$/)) {
-          sourceMap = data;
+          sourceMap = this.prepareSourceMap(data, inputFile, sourceFile);
         } else {
           result = { data, fileName, writeByteOrderMark, sourceFiles };
         }
@@ -104,7 +149,8 @@ export class MeteorTypescriptCompilerImpl {
       return;
     }
     try {
-      const emitResult = this.emitForSource(sourceFile);
+      console.log(green(`      ${inputFile.getBasename()}`));
+      const emitResult = this.emitForSource(inputFile, sourceFile);
       if (!emitResult) {
         console.error(`Nothing emitted for ${inputFilePath}`);
         return;

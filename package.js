@@ -8,6 +8,8 @@ Package.describe({
 
 Npm.depends({
   typescript: "3.9.2",
+  chalk: "4.0.0",
+  "@types/node": "14.0.4",
 });
 
 Package.onUse(function (api) {
