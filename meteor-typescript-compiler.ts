@@ -14,7 +14,7 @@ export class MeteorTypescriptCompilerImpl {
   private diagnostics: ts.Diagnostic[];
 
   error(msg: string, ...other: string[]) {
-    process.stdout.write(bold.red(msg) + reset(other.join(" ")) + "\n");
+    process.stderr.write(bold.red(msg) + reset(other.join(" ")) + "\n");
   }
 
   info(msg: string) {
@@ -31,13 +31,13 @@ export class MeteorTypescriptCompilerImpl {
           diagnostic.messageText,
           "\n"
         );
-        console.log(
+        this.info(
           `${diagnostic.file.fileName} (${line + 1},${
             character + 1
           }): ${message}`
         );
       } else {
-        console.log(
+        this.info(
           `${ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`
         );
       }
@@ -69,7 +69,7 @@ export class MeteorTypescriptCompilerImpl {
       /*host*/ {
         ...ts.sys,
         onUnRecoverableConfigFileDiagnostic: (d) =>
-          console.error(ts.flattenDiagnosticMessageText(d.messageText, "\n")),
+          this.error(ts.flattenDiagnosticMessageText(d.messageText, "\n")),
       }
     );
     if (!config) {
@@ -97,7 +97,7 @@ export class MeteorTypescriptCompilerImpl {
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
         if (fileName === buildInfoFile) {
-          console.log(`Writing ${buildInfoFile}`);
+          this.info(`Writing ${buildInfoFile}`);
           ts.sys.writeFile(fileName, data, writeByteOrderMark);
         }
       }
@@ -149,18 +149,13 @@ export class MeteorTypescriptCompilerImpl {
       return;
     }
     try {
-      console.log(green(`      ${inputFile.getBasename()}`));
+      this.info(inputFile.getBasename());
       const emitResult = this.emitForSource(inputFile, sourceFile);
       if (!emitResult) {
-        console.error(`Nothing emitted for ${inputFilePath}`);
+        this.error(`Nothing emitted for ${inputFilePath}`);
         return;
       }
       const { data, fileName, sourceMap } = emitResult;
-      // console.log(
-      //   `emitting ${fileName} ${
-      //     sourceMap ? "with source map" : ""
-      //   } for ${inputFilePath}`
-      // );
       inputFile.addJavaScript({
         data,
         sourcePath: inputFilePath,
@@ -168,13 +163,13 @@ export class MeteorTypescriptCompilerImpl {
         sourceMap,
       });
     } catch (e) {
-      console.error(e.message);
+      this.error(e.message);
     }
   }
 
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
     if (inputFiles.length > 0) {
-      console.info(`Typescript compilation for ${inputFiles[0].getArch()}`);
+      this.info(`Typescript compilation for ${inputFiles[0].getArch()}`);
     }
 
     this.startIncrementalCompilation();
