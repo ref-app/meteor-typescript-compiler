@@ -14,7 +14,7 @@ export function isBare(inputFile: MeteorCompiler.InputFile): boolean {
   return fileOptions && fileOptions.bare;
 }
 
-export class MeteorTypescriptCompilerImpl {
+export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram;
   private diagnostics: ts.Diagnostic[];
 
@@ -171,6 +171,7 @@ export class MeteorTypescriptCompilerImpl {
       this.program.getSourceFile(ts.sys.resolvePath(inputFilePath));
 
     if (!sourceFile) {
+      // this.error(`Could not find source file for ${inputFilePath}`);
       return;
     }
     try {

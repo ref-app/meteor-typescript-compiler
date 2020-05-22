@@ -136,7 +136,7 @@ declare namespace MeteorCompiler {
     ): void;
   }
 
-  export class Compiler {
-    public processFilesForTarget(inputFiles: InputFile[]): void;
+  export abstract class Compiler {
+    public abstract processFilesForTarget(inputFiles: InputFile[]): void;
   }
 }
