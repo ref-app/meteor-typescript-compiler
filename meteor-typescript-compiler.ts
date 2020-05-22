@@ -130,21 +130,27 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
       ...this.program.getSemanticDiagnostics(), // Get the diagnostics before emit to cache them in the buildInfo file.
     ];
 
+    const writeIfBuildInfo = (
+      fileName: string,
+      data: string,
+      writeByteOrderMark: boolean | undefined
+    ): boolean => {
+      if (fileName === buildInfoFile) {
+        this.info(`Writing ${getRelativeFileName(buildInfoFile)}`);
+        ts.sys.writeFile(fileName, data, writeByteOrderMark);
+        return true;
+      }
+      return false;
+    };
     /**
-     * Save out buildinfo (there is not source file for buildinfo so we can’t look it up)
-     * buildinfo is only written if it needs to be updated
-     *
-     * This method also gives us returns transpiled versions of all changed files so
-     * we could use it smarter to only emit new js transpiled versions when we need to,
-     * maybe by using the hash mechanism in the meteor build system ??
+     * "emit" without a sourcefile will process all changed files, including the buildinfo file
+     * so we need to write it out if it changed.
+     * Then we can also tell which files were recompiled.
      */
-    const emitResult = this.program.emit(
+    this.program.emit(
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        if (fileName === buildInfoFile) {
-          this.info(`Writing ${getRelativeFileName(buildInfoFile)}`);
-          ts.sys.writeFile(fileName, data, writeByteOrderMark);
-        } else {
+        if (!writeIfBuildInfo(fileName, data, writeByteOrderMark)) {
           if (sourceFiles.length > 0 && fileName.match(/\.js$/)) {
             // ignore .map files
             this.info(
@@ -154,6 +160,7 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
         }
       }
     );
+
     this.writeDiagnostics(this.diagnostics);
   }
 
