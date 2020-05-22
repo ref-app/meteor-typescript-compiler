@@ -110,7 +110,14 @@ export class MeteorTypescriptCompilerImpl {
       ...this.program.getSemanticDiagnostics(), // Get the diagnostics before emit to cache them in the buildInfo file.
     ];
 
-    /** Save out buildinfo */
+    /**
+     * Save out buildinfo (there is not source file for buildinfo so we can’t look it up)
+     * buildinfo is only written if it needs to be updated
+     *
+     * This method also gives us returns transpiled versions of all changed files so
+     * we could use it smarter to only emit new js transpiled versions when we need to,
+     * maybe by using the hash mechanism in the meteor build system ??
+     */
     this.program.emit(
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
@@ -174,11 +181,15 @@ export class MeteorTypescriptCompilerImpl {
         return;
       }
       const { data, fileName, sourceMap } = emitResult;
+
+      // Write a relative path. Assume each ts(x) file compiles to a .js file
+      const path = inputFilePath.replace(/\.tsx?$/, ".js");
+
       const bare = isBare(inputFile);
       inputFile.addJavaScript({
         data,
         sourcePath: inputFilePath,
-        path: fileName,
+        path,
         sourceMap,
         bare,
       });
