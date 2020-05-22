@@ -93,7 +93,7 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
     }
 
     const buildInfoFile = ts.sys.resolvePath(
-      ".meteor/local/buildfile.tsbuildinfo"
+      ".meteor/local/.typescript-incremental/buildfile.tsbuildinfo"
     );
     const config = ts.getParsedCommandLineOfConfigFile(
       configPath,
