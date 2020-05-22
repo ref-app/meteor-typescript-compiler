@@ -3,6 +3,9 @@
     "allowJs": true,
     "types": ["node"],
     "baseUrl": ".",
-    "paths": { "*": ["*", ".npm/package/node_modules/*"] }
+    "paths": { "*": ["*", ".npm/package/node_modules/*"] },
+    "typeRoots": [
+      "./.npm/package/node_modules/@types"
+    ]
   }
 }

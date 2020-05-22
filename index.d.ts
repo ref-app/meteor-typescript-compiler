@@ -12,11 +12,11 @@ declare namespace MeteorCompiler {
   export type SourceMap = string | Object;
 
   export interface AddJavaScriptOptions {
-    sourcePath: string;
-    path: string;
-    data: string;
+    sourcePath?: string;
+    path?: string;
+    data?: string;
     hash?: string;
-    sourceMap: SourceMap | undefined;
+    sourceMap?: SourceMap;
     bare?: boolean;
   }
 
@@ -28,6 +28,11 @@ declare namespace MeteorCompiler {
   }
 
   export class InputFile {
+    /**
+     * @summary True if the file can be lazily compiled (deferred using a hash).
+     */
+    public supportsLazyCompilation: boolean;
+
     /**
      * @summary Returns the full contents of the file as a buffer.
      * @memberof InputFile
