@@ -94,6 +94,20 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     });
   }
 
+  /**
+   * TBD in order to not force all projects to repeat the Meteor filename inclusion rules in the tsconfig.json
+   * exclude section, we should filter out files here:
+   *    Files in directories named "tests"
+   *    Files specified in .meteorignore files
+   *    other Meteor rules
+   *
+   * An alternative would be to provide a custom version of getFilesInDir
+   * to the host parameter of getParsedCommandLineOfConfigFile
+   */
+  filterSourceFilenames(sourceFiles: string[]): string[] {
+    return sourceFiles;
+  }
+
   startIncrementalCompilation() {
     const configPath = ts.findConfigFile(
       /*searchPath*/ "./",
@@ -125,6 +139,8 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     if (!config) {
       throw new Error("Could not parse 'tsconfig.json'.");
     }
+
+    config.fileNames = this.filterSourceFilenames(config.fileNames);
 
     this.trace("config.fileNames:\n" + config.fileNames.join(", "));
 

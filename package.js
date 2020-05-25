@@ -1,13 +1,19 @@
+/**
+ * Match these with the versions in the meteor-typescript/package.js
+ */
+const COMPILER_VERSION = "0.0.2";
+const TYPESCRIPT_VERSION = "3.9.2";
+
 Package.describe({
   name: "refapp:meteor-typescript-compiler",
-  version: "0.0.1",
+  version: COMPILER_VERSION,
   summary: "A Typescript compiler plugin for Meteor",
   git: "https://github.com/ref-app/meteor-typescript-compiler",
   documentation: "README.md",
 });
 
 Npm.depends({
-  typescript: "3.9.2",
+  typescript: TYPESCRIPT_VERSION,
   chalk: "4.0.0",
   "@types/node": "14.0.4",
 });
@@ -15,7 +21,7 @@ Npm.depends({
 Package.onUse(function (api) {
   api.versionsFrom("1.10");
   api.use(["babel-compiler"], "server");
-  api.use(["typescript"], "server"); // For compiling this package, should be a "devDependency"
+  api.use(["typescript"], "server"); // For compiling this package - should be a "devDependency" but meteor doesn’t have that concept
   api.addFiles(["meteor-typescript-compiler.ts"], "server");
   api.export(["MeteorTypescriptCompiler"], "server");
 });
