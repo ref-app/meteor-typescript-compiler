@@ -32,6 +32,10 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
   private diagnostics: ts.Diagnostic[];
   private traceEnabled = false;
 
+  constructor() {
+    this.traceEnabled = !!process.env["TYPESCRIPT_TRACE_ENABLED"];
+  }
+
   error(msg: string, ...other: string[]) {
     process.stderr.write(bold.red(msg) + reset(other.join(" ")) + "\n");
   }
@@ -113,6 +117,8 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
     if (!config) {
       throw new Error("Could not parse 'tsconfig.json'.");
     }
+
+    this.trace("config.fileNames:\n" + config.fileNames.join(", "));
 
     this.program = ts.createIncrementalProgram({
       rootNames: config.fileNames,
@@ -205,7 +211,7 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
       this.program.getSourceFile(ts.sys.resolvePath(inputFilePath));
 
     if (!sourceFile) {
-      // this.error(`Could not find source file for ${inputFilePath}`);
+      this.trace(`Could not find source file for ${inputFilePath}`);
       return;
     }
     try {
@@ -218,11 +224,13 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
       // Write a relative path. Assume each ts(x) file compiles to a .js file
       const path = inputFilePath.replace(/\.tsx?$/, ".js");
       const bare = isBare(inputFile);
+      const hash = calculateHash(data);
       const jsData: MeteorCompiler.AddJavaScriptOptions = {
         data,
         sourcePath: inputFilePath,
         path,
         sourceMap,
+        hash,
         bare,
       };
       inputFile.addJavaScript(jsData);
