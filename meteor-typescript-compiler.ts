@@ -142,7 +142,8 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
 
     config.fileNames = this.filterSourceFilenames(config.fileNames);
 
-    this.trace("config.fileNames:\n" + config.fileNames.join(", "));
+    // Too much information to handle for large projects…
+    // this.trace("config.fileNames:\n" + config.fileNames.join("\n"));
 
     this.program = ts.createIncrementalProgram({
       rootNames: config.fileNames,
@@ -291,7 +292,15 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
 
     const isCompilableFile = (f: MeteorCompiler.InputFile) => {
       const fileName = f.getBasename();
-      return !fileName.match(/.d.ts$/) && !fileName.match(/^tsconfig.json$/i);
+      const dirName = f.getDirname();
+      return (
+        !fileName.endsWith(".d.ts") &&
+        fileName !== "tsconfig.json" &&
+        // we really don’t want to compile .ts files in node_modules but meteor will send them
+        // anyway as input files. Adding node_modules to .meteorignore causes other runtime problems
+        // so this is any ugly workaround
+        !dirName.startsWith("node_modules/")
+      );
     };
 
     for (const inputFile of inputFiles.filter(isCompilableFile)) {
