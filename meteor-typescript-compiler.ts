@@ -27,12 +27,20 @@ function getRelativeFileName(filename: string): string {
   return filename;
 }
 
-export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
+export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram;
   private diagnostics: ts.Diagnostic[];
   private traceEnabled = false;
 
+  /**
+   * Used to inject the source map into the babel compilation
+   */
+  private withSourceMap:
+    | { sourceMap: MeteorCompiler.SourceMap; pathInPackage: string }
+    | undefined = undefined;
+
   constructor() {
+    super({});
     this.traceEnabled = !!process.env["TYPESCRIPT_TRACE_ENABLED"];
   }
 
@@ -204,6 +212,21 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
     return { ...result, sourceMap };
   }
 
+  public inferExtraBabelOptions(
+    inputfile: MeteorCompiler.InputFile,
+    babelOptions: any,
+    cacheDeps: any
+  ): boolean {
+    if (
+      this.withSourceMap &&
+      inputfile.getPathInPackage() === this.withSourceMap.pathInPackage
+    ) {
+      // Ensure that the Babel compiler picks up our source maps
+      babelOptions.inputSourceMap = this.withSourceMap.sourceMap;
+    }
+    return super.inferExtraBabelOptions(inputfile, babelOptions, cacheDeps);
+  }
+
   emitResultFor(inputFile: MeteorCompiler.InputFile) {
     const inputFilePath = inputFile.getPathInPackage();
     const sourceFile =
@@ -224,24 +247,28 @@ export class MeteorTypescriptCompilerImpl implements MeteorCompiler.Compiler {
       // Write a relative path. Assume each ts(x) file compiles to a .js file
       const path = inputFilePath.replace(/\.tsx?$/, ".js");
       const bare = isBare(inputFile);
+      // Compute the hash from the generated data itself since we depend on the typescript incremental compiler
+      // to make that cheap to get
       const hash = calculateHash(data);
-      const jsData: MeteorCompiler.AddJavaScriptOptions = {
-        data,
-        sourcePath: inputFilePath,
-        path,
-        sourceMap,
-        hash,
-        bare,
-      };
-      inputFile.addJavaScript(jsData);
+      inputFile.addJavaScript({ path, bare, hash }, () => {
+        // It seems that in order to get Babel processing, we must invoke it ourselves and cannot
+        // depend on the ecmascript package to do it for us
+        this.withSourceMap = { sourceMap, pathInPackage: inputFilePath };
+        const jsData = this.processOneFileForTarget(inputFile, data);
+        return jsData;
+      });
     } catch (e) {
       this.error(e.message);
     }
   }
 
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
+    if (inputFiles.length === 0) {
+      return;
+    }
+    const firstInput = inputFiles[0];
     if (inputFiles.length > 0) {
-      this.info(`Typescript compilation for ${inputFiles[0].getArch()}`);
+      this.info(`Typescript compilation for ${firstInput.getArch()}`);
     }
 
     this.startIncrementalCompilation();

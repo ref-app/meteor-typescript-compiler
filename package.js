@@ -14,7 +14,8 @@ Npm.depends({
 
 Package.onUse(function (api) {
   api.versionsFrom("1.10");
-  api.use(["typescript"], "server");
+  api.use(["babel-compiler"], "server");
+  api.use(["typescript"], "server"); // For compiling this package, should be a "devDependency"
   api.addFiles(["meteor-typescript-compiler.ts"], "server");
   api.export(["MeteorTypescriptCompiler"], "server");
 });

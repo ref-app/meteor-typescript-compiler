@@ -141,6 +141,35 @@ declare namespace MeteorCompiler {
     ): void;
   }
 
+  /**
+   * For the npm babel-meteor wrapper
+   * https://github.com/meteor/babel/blob/master/options.js
+   */
+  export interface BabelFeatures {
+    nodeMajorVersion?: number;
+    modernBrowsers?: boolean;
+    generateLetDeclarations?: boolean;
+    jscript?: boolean;
+    react?: boolean;
+    inlineNodeEnv?: boolean;
+    keepFnName?: boolean;
+    compileForShell?: boolean;
+    compileModulesOnly?: boolean;
+    runtime?: boolean;
+    avoidModernSyntax?: boolean;
+    enforceStrictMode?: boolean;
+    dynamicImport?: boolean;
+    compact?: boolean;
+    sourceMaps?: boolean;
+    ast?: boolean;
+    // Disable .babelrc lookup and processing.
+    babelrc?: boolean;
+    // Disable babel.config.js lookup and processing.
+    configFile?: boolean;
+    typescript?: boolean;
+    parserOpts?: any;
+  }
+
   export abstract class Compiler {
     public abstract processFilesForTarget(inputFiles: InputFile[]): void;
   }
