@@ -284,9 +284,12 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       return;
     }
     const firstInput = inputFiles[0];
-    if (inputFiles.length > 0) {
-      this.info(`Typescript compilation for ${firstInput.getArch()}`);
-    }
+    const startTime = Date.now();
+    this.info(
+      `Typescript compilation for ${firstInput.getArch()} using Typescript ${
+        ts.version
+      }`
+    );
 
     this.startIncrementalCompilation();
 
@@ -298,7 +301,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         fileName !== "tsconfig.json" &&
         // we really don’t want to compile .ts files in node_modules but meteor will send them
         // anyway as input files. Adding node_modules to .meteorignore causes other runtime problems
-        // so this is any ugly workaround
+        // so this is a somewhat ugly workaround
         !dirName.startsWith("node_modules/")
       );
     };
@@ -306,6 +309,11 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     for (const inputFile of inputFiles.filter(isCompilableFile)) {
       this.emitResultFor(inputFile);
     }
+    const endTime = Date.now();
+    const delta = endTime - startTime;
+    this.info(
+      `Compilation finished in ${Math.round(delta / 100) / 10} seconds`
+    );
   }
 }
 
