@@ -297,6 +297,12 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       return;
     }
 
+    if (this.numStoredFiles) {
+      this.info(
+        `Last compilation, ${this.numStoredFiles} transpiled files were sent to Meteor with the lazyCompiler callback`
+      );
+    }
+
     this.numEmittedFiles = 0;
     this.numStoredFiles = 0;
     this.numCompiledFiles = 0;
@@ -334,7 +340,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         compilableFiles.length
       } input files, ${this.numCompiledFiles} files compiled, ${
         this.numEmittedFiles
-      } files emitted, ${this.numStoredFiles} files sent to Meteor`
+      } files emitted`
     );
   }
 }
