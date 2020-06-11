@@ -292,15 +292,22 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     }
   }
 
+  // Called by the compiler plugins system after all linking and lazy
+  // compilation has finished. (bundler.js)
+  afterLink() {
+    if (this.numStoredFiles || this.numEmittedFiles) {
+      this.info(
+        `Typescript: ${this.numEmittedFiles} files emitted, ${this.numStoredFiles} transpiled files sent on for bundling`
+      );
+    }
+    // Reset since this method gets called once for each resourceSlot
+    this.numEmittedFiles = 0;
+    this.numStoredFiles = 0;
+  }
+
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
     if (inputFiles.length === 0) {
       return;
-    }
-
-    if (this.numStoredFiles) {
-      this.info(
-        `Last compilation, ${this.numStoredFiles} transpiled files were sent to Meteor with the lazyCompiler callback`
-      );
     }
 
     this.numEmittedFiles = 0;
@@ -338,9 +345,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     this.info(
       `Compilation finished in ${Math.round(delta / 100) / 10} seconds. ${
         compilableFiles.length
-      } input files, ${this.numCompiledFiles} files compiled, ${
-        this.numEmittedFiles
-      } files emitted`
+      } input files, ${this.numCompiledFiles} files compiled`
     );
   }
 }
