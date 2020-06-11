@@ -131,7 +131,6 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         incremental: true,
         tsBuildInfoFile: buildInfoFile,
         noEmit: false,
-        importHelpers: true,
         sourceMap: true,
       },
       /*host*/ {
