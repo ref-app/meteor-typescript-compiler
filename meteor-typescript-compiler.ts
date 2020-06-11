@@ -290,6 +290,11 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     if (inputFiles.length === 0) {
       return;
     }
+
+    this.numEmittedFiles = 0;
+    this.numStoredFiles = 0;
+    this.numCompiledFiles = 0;
+
     const firstInput = inputFiles[0];
     const startTime = Date.now();
     this.info(
