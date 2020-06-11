@@ -262,24 +262,30 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       return;
     }
     try {
-      const emitResult = this.emitForSource(inputFile, sourceFile);
-      if (!emitResult) {
-        this.error(`Nothing emitted for ${inputFilePath}`);
-        return;
-      }
-      const { data, fileName, sourceMap } = emitResult;
       // Write a relative path. Assume each ts(x) file compiles to a .js file
       const path = inputFilePath.replace(/\.tsx?$/, ".js");
       const bare = isBare(inputFile);
-      // We must hash the source file contents since that’s what readAndWatchFileWithHash in compiler-plugin checks
       const hash = inputFile.getSourceHash();
       inputFile.addJavaScript({ path, bare, hash }, () => {
         this.numStoredFiles++;
-        // To get Babel processing, we must invoke it ourselves via an inherited BabelCompiler method
-        this.withSourceMap = { sourceMap, pathInPackage: inputFilePath };
+        const emitResult = this.emitForSource(inputFile, sourceFile);
+        if (!emitResult) {
+          this.error(`Nothing emitted for ${inputFilePath}`);
+          return;
+        }
+        const { data, fileName, sourceMap } = emitResult;
+        // To get Babel processing, we must invoke it ourselves via the
+        //  inherited BabelCompiler method processOneFileForTarget
+        this.withSourceMap = {
+          sourceMap,
+          pathInPackage: inputFilePath,
+        };
         const jsData = this.processOneFileForTarget(inputFile, data);
         // Use the same hash as in the deferred data
-        return { ...jsData, hash };
+        return {
+          ...jsData,
+          hash,
+        };
       });
     } catch (e) {
       this.error(e.message);
