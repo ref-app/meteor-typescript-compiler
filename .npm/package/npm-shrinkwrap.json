@@ -42,9 +42,9 @@
       "integrity": "sha512-oRSIpR8pxT1Wr2FquTNnGet79b3BWljqOuoW/h4oBhxJ/HUbX5nX6JSruTkvXDCFMwDPvsaTTbvMLKZWSy0R5g=="
     },
     "typescript": {
-      "version": "3.9.4",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-3.9.4.tgz",
-      "integrity": "sha512-9OL+r0KVHqsYVH7K18IBR9hhC82YwLNlpSZfQDupGcfg8goB9p/s/9Okcy+ztnTeHR2U68xq21/igW9xpoGTgA=="
+      "version": "3.9.6",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-3.9.6.tgz",
+      "integrity": "sha512-Pspx3oKAPJtjNwE92YS05HQoY7z2SFyOpHo9MqJor3BXAGNaPUs83CuVp9VISFkSjyRfiTpmKuAYGJB7S7hOxw=="
     }
   }
 }
