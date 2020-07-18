@@ -261,8 +261,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       return;
     }
     try {
-      // Write a relative path. Assume each ts(x) file compiles to a .js file
-      const path = inputFilePath.replace(/\.tsx?$/, ".js");
+      const path = inputFile.getPathInPackage();
       const bare = isBare(inputFile);
       const hash = inputFile.getSourceHash();
       inputFile.addJavaScript({ path, bare, hash }, () => {
