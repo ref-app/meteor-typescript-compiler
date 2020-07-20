@@ -261,10 +261,12 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       return;
     }
     try {
-      const path = inputFile.getPathInPackage();
+      const sourcePath = inputFile.getPathInPackage();
+      // Write a relative path. Assume each ts(x) file compiles to a .js file
+      const targetPath = sourcePath.replace(/\.tsx?$/, ".js");
       const bare = isBare(inputFile);
       const hash = inputFile.getSourceHash();
-      inputFile.addJavaScript({ path, bare, hash }, () => {
+      inputFile.addJavaScript({ path: targetPath, bare, hash }, () => {
         this.numStoredFiles++;
         const emitResult = this.emitForSource(inputFile, sourceFile);
         if (!emitResult) {
@@ -273,7 +275,8 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         }
         const { data, fileName, sourceMap } = emitResult;
         // To get Babel processing, we must invoke it ourselves via the
-        //  inherited BabelCompiler method processOneFileForTarget
+        // inherited BabelCompiler method processOneFileForTarget
+        // To get the source map injected we override inferExtraBabelOptions
         this.withSourceMap = {
           sourceMap,
           pathInPackage: inputFilePath,
