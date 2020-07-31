@@ -1,6 +1,7 @@
 import * as ts from "typescript";
 import * as crypto from "crypto";
 import { bold, dim, reset } from "chalk";
+import { emitWarning } from "process";
 
 /**
  * compiler-console (could not figure out how to load from separate file/module)
@@ -15,6 +16,10 @@ export function setTraceEnabled(enabled: boolean) {
 
 export function error(msg: string, ...other: string[]) {
   process.stderr.write(bold.red(msg) + reset(other.join(" ")) + "\n");
+}
+
+export function warn(msg: string, ...other: string[]) {
+  process.stderr.write(bold.yellow(msg) + reset(other.join(" ")) + "\n");
 }
 
 export function info(msg: string) {
@@ -165,6 +170,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   private numStoredFiles = 0;
   private numCompiledFiles = 0;
   private numFilesFromCache = 0;
+  private numFilesToCache = 0;
 
   /**
    * Used to inject the source map into the babel compilation
@@ -317,7 +323,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
             if (fileName.match(/\.js$/)) {
               info(`Compiling ${relativeSourceFilePath}`);
               this.numCompiledFiles++;
-              this.cache?.addJavascript(relativeSourceFilePath, {
+              this.addJavascriptToCache(relativeSourceFilePath, {
                 fileName,
                 source: data,
               });
@@ -331,6 +337,16 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     );
 
     this.writeDiagnostics(this.diagnostics);
+  }
+
+  /**
+   * Adds if enabled
+   */
+  addJavascriptToCache(sourceFilePath: string, data: JavascriptData) {
+    if (this.cache) {
+      this.numFilesToCache++;
+      this.cache.addJavascript(sourceFilePath, data);
+    }
   }
 
   prepareSourceMap(
@@ -454,29 +470,39 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     }
   }
 
+  clearStats() {
+    this.numEmittedFiles = 0;
+    this.numFilesFromCache = 0;
+    this.numFilesToCache = 0;
+    this.numStoredFiles = 0;
+    this.numCompiledFiles = 0;
+  }
+
   // Called by the compiler plugins system after all linking and lazy
   // compilation has finished. (bundler.js)
   afterLink() {
-    if (this.numStoredFiles || this.numEmittedFiles) {
+    if (this.numStoredFiles) {
+      const emitCacheInfo = this.cache
+        ? `${this.numFilesToCache} updated emitted files stored in disk cache`
+        : `${this.numEmittedFiles} files emitted`;
       info(
-        `Typescript: ${this.numEmittedFiles} files emitted, ${this.numFilesFromCache} found in cache on disk, ${this.numStoredFiles} transpiled files sent on for bundling`
+        `Typescript summary: ${emitCacheInfo}, ${this.numStoredFiles} transpiled files sent on for bundling`
       );
+      if (this.cache && this.numEmittedFiles > 0) {
+        warn(
+          `${this.numEmittedFiles} files emitted ad-hoc (cache inconsistency)`
+        );
+      }
     }
     // Reset since this method gets called once for each resourceSlot
-    this.numEmittedFiles = 0;
-    this.numFilesFromCache = 0;
-    this.numStoredFiles = 0;
+    this.clearStats();
   }
 
   processFilesForTarget(inputFiles: MeteorCompiler.InputFile[]) {
     if (inputFiles.length === 0) {
       return;
     }
-
-    this.numEmittedFiles = 0;
-    this.numStoredFiles = 0;
-    this.numCompiledFiles = 0;
-    this.numFilesFromCache = 0;
+    this.clearStats();
 
     const firstInput = inputFiles[0];
     const startTime = Date.now();
