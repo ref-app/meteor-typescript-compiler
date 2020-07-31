@@ -1,13 +1,12 @@
-import { bold, dim, reset } from "chalk";
 import * as ts from "typescript";
 import * as crypto from "crypto";
+import { CompilerCache } from "compiler-cache";
+import { setTraceEnabled, error, info, trace } from "compiler-console";
 
 interface LocalEmitResult {
   fileName: string;
   data: string;
-  writeByteOrderMark: boolean;
   sourceMap?: MeteorCompiler.SourceMap;
-  sourceFiles: readonly ts.SourceFile[];
 }
 
 function isBare(inputFile: MeteorCompiler.InputFile): boolean {
@@ -30,7 +29,6 @@ function getRelativeFileName(filename: string): string {
 export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram;
   private diagnostics: ts.Diagnostic[];
-  private traceEnabled = false;
   private numEmittedFiles = 0;
   private numStoredFiles = 0;
   private numCompiledFiles = 0;
@@ -43,33 +41,21 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     | { sourceMap: MeteorCompiler.SourceMap; pathInPackage: string }
     | undefined = undefined;
 
+  private cache: CompilerCache | undefined = undefined;
+
   constructor() {
     super({});
-    this.traceEnabled = !!process.env["TYPESCRIPT_TRACE_ENABLED"];
-  }
-
-  error(msg: string, ...other: string[]) {
-    process.stderr.write(bold.red(msg) + reset(other.join(" ")) + "\n");
-  }
-
-  info(msg: string) {
-    process.stdout.write(bold.green(msg) + dim(" ") + "\n");
-  }
-
-  trace(msg: string) {
-    if (this.traceEnabled) {
-      process.stdout.write(dim(msg) + dim(" ") + "\n");
-    }
+    setTraceEnabled(!!process.env["TYPESCRIPT_TRACE_ENABLED"]);
   }
 
   writeDiagnosticMessage(diagnostics: ts.Diagnostic, message: string) {
     switch (diagnostics.category) {
       case ts.DiagnosticCategory.Error:
-        return this.error(message);
+        return error(message);
       case ts.DiagnosticCategory.Warning:
       case ts.DiagnosticCategory.Suggestion:
       case ts.DiagnosticCategory.Message:
-        return this.info(message);
+        return info(message);
     }
   }
 
@@ -122,9 +108,13 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       throw new Error("Could not find a valid 'tsconfig.json'.");
     }
 
+    const cachePath = ".meteor/local/.typescript-incremental";
     const buildInfoFile = ts.sys.resolvePath(
-      ".meteor/local/.typescript-incremental/buildfile.tsbuildinfo"
+      `${cachePath}/buildfile.tsbuildinfo`
     );
+    if (!!process.env.TYPESCRIPT_CACHE) {
+      this.cache = new CompilerCache(ts.sys.resolvePath(`{cachePath}/v1cache`));
+    }
     const config = ts.getParsedCommandLineOfConfigFile(
       configPath,
       /*optionsToExtend*/ {
@@ -136,7 +126,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       /*host*/ {
         ...ts.sys,
         onUnRecoverableConfigFileDiagnostic: (d) =>
-          this.error(ts.flattenDiagnosticMessageText(d.messageText, "\n")),
+          error(ts.flattenDiagnosticMessageText(d.messageText, "\n")),
       }
     );
     if (!config) {
@@ -146,7 +136,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     config.fileNames = this.filterSourceFilenames(config.fileNames);
 
     // Too much information to handle for large projects…
-    // this.trace("config.fileNames:\n" + config.fileNames.join("\n"));
+    // trace("config.fileNames:\n" + config.fileNames.join("\n"));
 
     this.program = ts.createIncrementalProgram({
       rootNames: config.fileNames,
@@ -170,7 +160,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       writeByteOrderMark: boolean | undefined
     ): boolean => {
       if (fileName === buildInfoFile) {
-        this.info(`Writing ${getRelativeFileName(buildInfoFile)}`);
+        info(`Writing ${getRelativeFileName(buildInfoFile)}`);
         ts.sys.writeFile(fileName, data, writeByteOrderMark);
         return true;
       }
@@ -179,18 +169,27 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     /**
      * "emit" without a sourcefile will process all changed files, including the buildinfo file
      * so we need to write it out if it changed.
-     * Then we can also tell which files were recompiled.
+     * Then we can also tell which files were recompiled and put the data into the cache.
      */
     this.program.emit(
       undefined,
       (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
         if (!writeIfBuildInfo(fileName, data, writeByteOrderMark)) {
-          if (sourceFiles.length > 0 && fileName.match(/\.js$/)) {
-            // ignore .map files
-            this.info(
-              `Compiling ${getRelativeFileName(sourceFiles[0].fileName)}`
+          if (sourceFiles.length > 0) {
+            const relativeSourceFilePath = getRelativeFileName(
+              sourceFiles[0].fileName
             );
-            this.numCompiledFiles++;
+            if (fileName.match(/\.js$/)) {
+              info(`Compiling ${relativeSourceFilePath}`);
+              this.numCompiledFiles++;
+              this.cache?.addJavascript(relativeSourceFilePath, {
+                fileName,
+                source: data,
+              });
+            }
+            if (fileName.match(/\.map$/)) {
+              this.cache?.addSourceMap(relativeSourceFilePath, data);
+            }
           }
         }
       }
@@ -216,23 +215,48 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   ): LocalEmitResult | undefined {
     this.numEmittedFiles++;
     let result: LocalEmitResult | undefined = undefined;
-    let sourceMap: Object | string | undefined = undefined;
-    this.trace(`Emitting Javascript for ${inputFile.getPathInPackage()}`);
+    let sourceMapJson: string | undefined = undefined;
+    trace(`Emitting Javascript for ${inputFile.getPathInPackage()}`);
 
-    this.program.emit(
-      sourceFile,
-      (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        if (fileName.match(/\.map$/)) {
-          sourceMap = this.prepareSourceMap(data, inputFile, sourceFile);
-        } else {
-          result = { data, fileName, writeByteOrderMark, sourceFiles };
-        }
+    this.program.emit(sourceFile, (fileName, data) => {
+      if (fileName.match(/\.map$/)) {
+        sourceMapJson = data;
+      } else {
+        result = { data, fileName };
       }
-    );
+    });
     if (!result) {
       return result;
     }
+    const sourcePath = inputFile.getPathInPackage();
+    this.cache?.addJavascript(sourcePath, {
+      fileName: result.fileName,
+      source: result.data,
+    });
+    const sourceMap = sourceMapJson
+      ? this.prepareSourceMap(sourceMapJson, inputFile, sourceFile)
+      : undefined;
     return { ...result, sourceMap };
+  }
+
+  getOutputForSource(
+    inputFile: MeteorCompiler.InputFile,
+    sourceFile: ts.SourceFile
+  ): LocalEmitResult | undefined {
+    const fromCache = this.cache?.get(inputFile.getPathInPackage());
+    if (fromCache) {
+      const {
+        sourceMapJson,
+        javascript: { fileName, source },
+      } = fromCache;
+      const sourceMap = this.prepareSourceMap(
+        sourceMapJson,
+        inputFile,
+        sourceFile
+      );
+      return { data: source, sourceMap, fileName };
+    }
+    return this.emitForSource(inputFile, sourceFile);
   }
 
   public inferExtraBabelOptions(
@@ -257,20 +281,18 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       this.program.getSourceFile(ts.sys.resolvePath(inputFilePath));
 
     if (!sourceFile) {
-      this.trace(`Could not find source file for ${inputFilePath}`);
+      trace(`Could not find source file for ${inputFilePath}`);
       return;
     }
     try {
       const sourcePath = inputFile.getPathInPackage();
-      // Write a relative path. Assume each ts(x) file compiles to a .js file
-      const targetPath = sourcePath.replace(/\.tsx?$/, ".js");
       const bare = isBare(inputFile);
       const hash = inputFile.getSourceHash();
       inputFile.addJavaScript({ path: sourcePath, bare, hash }, () => {
         this.numStoredFiles++;
-        const emitResult = this.emitForSource(inputFile, sourceFile);
+        const emitResult = this.getOutputForSource(inputFile, sourceFile);
         if (!emitResult) {
-          this.error(`Nothing emitted for ${inputFilePath}`);
+          error(`Nothing emitted for ${inputFilePath}`);
           return;
         }
         const { data, fileName, sourceMap } = emitResult;
@@ -289,7 +311,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         };
       });
     } catch (e) {
-      this.error(e.message);
+      error(e.message);
     }
   }
 
@@ -297,7 +319,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   // compilation has finished. (bundler.js)
   afterLink() {
     if (this.numStoredFiles || this.numEmittedFiles) {
-      this.info(
+      info(
         `Typescript: ${this.numEmittedFiles} files emitted, ${this.numStoredFiles} transpiled files sent on for bundling`
       );
     }
@@ -317,7 +339,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
 
     const firstInput = inputFiles[0];
     const startTime = Date.now();
-    this.info(
+    info(
       `Typescript compilation for ${firstInput.getArch()} using Typescript ${
         ts.version
       }`
@@ -343,7 +365,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     }
     const endTime = Date.now();
     const delta = endTime - startTime;
-    this.info(
+    info(
       `Compilation finished in ${Math.round(delta / 100) / 10} seconds. ${
         compilableFiles.length
       } input files, ${this.numCompiledFiles} files compiled`
