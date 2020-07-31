@@ -39,19 +39,98 @@ interface CacheData {
   javascript: JavascriptData;
   sourceMapJson: string | undefined;
 }
+
+interface JsCacheContent {
+  type: "js";
+  content: JavascriptData;
+}
+interface SourceMapCacheContent {
+  type: "sourceMap";
+  content: string;
+}
+type CacheContent = JsCacheContent | SourceMapCacheContent;
+
+interface CacheContainer {
+  sourceFilePath: string;
+  content: CacheContent;
+}
+
+function tryParse<T>(s: string): T | undefined {
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    error(`${e.message} when parsing ${s}`);
+  }
+  return undefined;
+}
+
 /**
  * Caches output from typescript on disk
  */
 export class CompilerCache {
   constructor(private cacheRoot: string) {}
 
+  private getKey(sourceFilePath: string) {
+    const result = calculateHash(sourceFilePath);
+    return result;
+  }
+
+  private getHashContentPath(sourceFilePath: string, type: "js" | "sourceMap") {
+    const key = this.getKey(sourceFilePath);
+    const result = `${this.cacheRoot}/${type}/${key}.json`;
+    return result;
+  }
+
+  private writeContent(sourceFilePath: string, content: CacheContent) {
+    const path = this.getHashContentPath(sourceFilePath, content.type);
+    const container: CacheContainer = {
+      sourceFilePath,
+      content,
+    };
+    const data = JSON.stringify(container);
+    ts.sys.writeFile(path, data);
+  }
+
+  private readContent(
+    sourceFilePath: string,
+    type: "js" | "sourceMap"
+  ): CacheContent | undefined {
+    const path = this.getHashContentPath(sourceFilePath, type);
+    if (ts.sys.fileExists(path)) {
+      const fileContents = ts.sys.readFile(path);
+      const container = fileContents
+        ? tryParse<CacheContainer>(fileContents)
+        : undefined;
+      return container?.content;
+    }
+    return undefined;
+  }
+
   public addJavascript(sourceFilePath: string, data: JavascriptData) {
-    info(`Caching javascript for ${sourceFilePath}`);
+    this.writeContent(sourceFilePath, { type: "js", content: data });
   }
   public addSourceMap(sourceFilePath: string, data: string) {
-    info(`Caching sourceMap for ${sourceFilePath}`);
+    this.writeContent(sourceFilePath, { type: "sourceMap", content: data });
   }
   public get(sourceFilePath: string): CacheData | undefined {
+    const jsData = this.getJavascript(sourceFilePath);
+    if (!jsData) {
+      return undefined;
+    }
+    const sourceMapJson = this.getSourceMap(sourceFilePath);
+    return { javascript: jsData, sourceMapJson };
+  }
+  private getJavascript(sourceFilePath: string): JavascriptData | undefined {
+    const content = this.readContent(sourceFilePath, "js");
+    if (content?.type === "js") {
+      return content.content;
+    }
+  }
+  private getSourceMap(sourceFilePath: string): string | undefined {
+    const content = this.readContent(sourceFilePath, "sourceMap");
+    if (content?.type === "sourceMap") {
+      return content.content;
+    }
     return undefined;
   }
 }
@@ -85,6 +164,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   private numEmittedFiles = 0;
   private numStoredFiles = 0;
   private numCompiledFiles = 0;
+  private numFilesFromCache = 0;
 
   /**
    * Used to inject the source map into the babel compilation
@@ -166,7 +246,9 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
       `${cachePath}/buildfile.tsbuildinfo`
     );
     if (!!process.env.TYPESCRIPT_CACHE) {
-      this.cache = new CompilerCache(ts.sys.resolvePath(`{cachePath}/v1cache`));
+      this.cache = new CompilerCache(
+        ts.sys.resolvePath(`${cachePath}/v1cache`)
+      );
     }
     const config = ts.getParsedCommandLineOfConfigFile(
       configPath,
@@ -289,6 +371,9 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     const sourceMap = sourceMapJson
       ? this.prepareSourceMap(sourceMapJson, inputFile, sourceFile)
       : undefined;
+    if (sourceMapJson) {
+      this.cache?.addSourceMap(sourcePath, sourceMapJson);
+    }
     return { ...result, sourceMap };
   }
 
@@ -307,6 +392,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
         inputFile,
         sourceFile
       );
+      this.numFilesFromCache++;
       return { data: source, sourceMap, fileName };
     }
     return this.emitForSource(inputFile, sourceFile);
@@ -373,11 +459,12 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
   afterLink() {
     if (this.numStoredFiles || this.numEmittedFiles) {
       info(
-        `Typescript: ${this.numEmittedFiles} files emitted, ${this.numStoredFiles} transpiled files sent on for bundling`
+        `Typescript: ${this.numEmittedFiles} files emitted, ${this.numFilesFromCache} found in cache on disk, ${this.numStoredFiles} transpiled files sent on for bundling`
       );
     }
     // Reset since this method gets called once for each resourceSlot
     this.numEmittedFiles = 0;
+    this.numFilesFromCache = 0;
     this.numStoredFiles = 0;
   }
 
@@ -389,6 +476,7 @@ export class MeteorTypescriptCompilerImpl extends BabelCompiler {
     this.numEmittedFiles = 0;
     this.numStoredFiles = 0;
     this.numCompiledFiles = 0;
+    this.numFilesFromCache = 0;
 
     const firstInput = inputFiles[0];
     const startTime = Date.now();
